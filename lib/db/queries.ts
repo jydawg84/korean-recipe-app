@@ -1,6 +1,7 @@
 import { desc, and, eq, isNull } from 'drizzle-orm';
 import { db } from './drizzle';
-import { activityLogs, teamMembers, teams, users } from './schema';
+import { activityLogs, teamMembers, teams, users, recipes } from './schema';
+import type { RecipeData } from './schema';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth/session';
 
@@ -127,4 +128,74 @@ export async function getTeamForUser() {
   });
 
   return result?.team || null;
+}
+
+// ─── Recipe queries ───────────────────────────────────────────────────────────
+
+export async function getUserRecipes(userId: number) {
+  return await db
+    .select()
+    .from(recipes)
+    .where(eq(recipes.userId, userId))
+    .orderBy(desc(recipes.createdAt));
+}
+
+export async function getSavedRecipes(userId: number) {
+  return await db
+    .select()
+    .from(recipes)
+    .where(and(eq(recipes.userId, userId), eq(recipes.isSaved, true)))
+    .orderBy(desc(recipes.createdAt));
+}
+
+export async function getRecipeById(id: number, userId: number) {
+  const result = await db
+    .select()
+    .from(recipes)
+    .where(and(eq(recipes.id, id), eq(recipes.userId, userId)))
+    .limit(1);
+
+  return result[0] || null;
+}
+
+export async function createRecipe(
+  userId: number,
+  recipeData: RecipeData,
+  scanInput: string
+) {
+  const [recipe] = await db
+    .insert(recipes)
+    .values({
+      userId,
+      recipeData: JSON.stringify(recipeData),
+      scanInput,
+      isSaved: false
+    })
+    .returning();
+
+  return recipe;
+}
+
+export async function toggleSaveRecipe(id: number, userId: number, isSaved: boolean) {
+  await db
+    .update(recipes)
+    .set({ isSaved })
+    .where(and(eq(recipes.id, id), eq(recipes.userId, userId)));
+}
+
+export async function incrementScanCount(userId: number) {
+  const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  if (user.length > 0) {
+    await db
+      .update(users)
+      .set({ scanCount: user[0].scanCount + 1 })
+      .where(eq(users.id, userId));
+  }
+}
+
+export async function setLifetimeAccess(teamId: number) {
+  await db
+    .update(teams)
+    .set({ lifetimeAccess: true, updatedAt: new Date() })
+    .where(eq(teams.id, teamId));
 }

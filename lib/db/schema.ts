@@ -5,6 +5,7 @@ import {
   text,
   timestamp,
   integer,
+  boolean,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
@@ -14,6 +15,7 @@ export const users = pgTable('users', {
   email: varchar('email', { length: 255 }).notNull().unique(),
   passwordHash: text('password_hash').notNull(),
   role: varchar('role', { length: 20 }).notNull().default('member'),
+  scanCount: integer('scan_count').notNull().default(0),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
   deletedAt: timestamp('deleted_at'),
@@ -29,6 +31,7 @@ export const teams = pgTable('teams', {
   stripeProductId: text('stripe_product_id'),
   planName: varchar('plan_name', { length: 50 }),
   subscriptionStatus: varchar('subscription_status', { length: 20 }),
+  lifetimeAccess: boolean('lifetime_access').notNull().default(false),
 });
 
 export const teamMembers = pgTable('team_members', {
@@ -68,6 +71,19 @@ export const invitations = pgTable('invitations', {
   status: varchar('status', { length: 20 }).notNull().default('pending'),
 });
 
+export const recipes = pgTable('recipes', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id')
+    .notNull()
+    .references(() => users.id),
+  recipeData: text('recipe_data').notNull(), // JSON string
+  scanInput: text('scan_input'),
+  isSaved: boolean('is_saved').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+// ─── Relations ───────────────────────────────────────────────────────────────
+
 export const teamsRelations = relations(teams, ({ many }) => ({
   teamMembers: many(teamMembers),
   activityLogs: many(activityLogs),
@@ -77,6 +93,7 @@ export const teamsRelations = relations(teams, ({ many }) => ({
 export const usersRelations = relations(users, ({ many }) => ({
   teamMembers: many(teamMembers),
   invitationsSent: many(invitations),
+  recipes: many(recipes),
 }));
 
 export const invitationsRelations = relations(invitations, ({ one }) => ({
@@ -112,6 +129,15 @@ export const activityLogsRelations = relations(activityLogs, ({ one }) => ({
   }),
 }));
 
+export const recipesRelations = relations(recipes, ({ one }) => ({
+  user: one(users, {
+    fields: [recipes.userId],
+    references: [users.id],
+  }),
+}));
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Team = typeof teams.$inferSelect;
@@ -122,6 +148,8 @@ export type ActivityLog = typeof activityLogs.$inferSelect;
 export type NewActivityLog = typeof activityLogs.$inferInsert;
 export type Invitation = typeof invitations.$inferSelect;
 export type NewInvitation = typeof invitations.$inferInsert;
+export type Recipe = typeof recipes.$inferSelect;
+export type NewRecipe = typeof recipes.$inferInsert;
 export type TeamDataWithMembers = Team & {
   teamMembers: (TeamMember & {
     user: Pick<User, 'id' | 'name' | 'email'>;
@@ -139,4 +167,49 @@ export enum ActivityType {
   REMOVE_TEAM_MEMBER = 'REMOVE_TEAM_MEMBER',
   INVITE_TEAM_MEMBER = 'INVITE_TEAM_MEMBER',
   ACCEPT_INVITATION = 'ACCEPT_INVITATION',
+}
+
+// ─── Recipe data shape (stored as JSON in recipe_data) ───────────────────────
+
+export interface RecipeIngredient {
+  amount: string;
+  item: string;
+  note?: string;
+}
+
+export interface RecipeInstruction {
+  step: number;
+  title: string;
+  text: string;
+  tip?: string;
+}
+
+export interface RecipeNutrition {
+  calories: number;
+  protein: string;
+  carbs: string;
+  fat: string;
+  fiber: string;
+}
+
+export interface RecipeData {
+  name: string;
+  nameKorean: string;
+  nameRomanized: string;
+  nameEnglish: string;
+  description: string;
+  category: string;
+  difficulty: 'Easy' | 'Medium' | 'Hard';
+  prepTime: number;
+  cookTime: number;
+  servings: number;
+  emoji: string;
+  color: string; // Tailwind gradient classes
+  ingredients: RecipeIngredient[];
+  instructions: RecipeInstruction[];
+  nutrition: RecipeNutrition;
+  toddlerTips: string;
+  toddlerIngredientSwaps: string[];
+  shoppingList: string[];
+  tags: string[];
 }

@@ -5,8 +5,9 @@ import { getUser, getTeamForUser } from '@/lib/db/queries';
 import { SWRConfig } from 'swr';
 
 export const metadata: Metadata = {
-  title: 'Next.js SaaS Starter',
-  description: 'Get started quickly with Next.js, Postgres, and Stripe.'
+  title: 'Home Korean Recipes – AI-Powered Authentic Korean Cooking',
+  description:
+    'Snap your fridge or type your ingredients and get authentic Korean home recipes with step-by-step instructions, exact measurements, shopping list, and toddler-friendly versions.'
 };
 
 export const viewport: Viewport = {
@@ -25,12 +26,10 @@ export default function RootLayout({
       lang="en"
       className={`bg-white dark:bg-gray-950 text-black dark:text-white ${manrope.className}`}
     >
-      <body className="min-h-[100dvh] bg-gray-50">
+      <body className="min-h-[100dvh] bg-amber-50/30">
         <SWRConfig
           value={{
             fallback: {
-              // We do NOT await here
-              // Only components that read this data will suspend
               '/api/user': getUser(),
               '/api/team': getTeamForUser()
             }

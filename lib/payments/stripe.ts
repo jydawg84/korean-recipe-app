@@ -8,7 +8,7 @@ import {
 } from '@/lib/db/queries';
 
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-04-30.basil'
+  apiVersion: '2025-08-27.basil' as any
 });
 
 export async function createCheckoutSession({
@@ -46,6 +46,40 @@ export async function createCheckoutSession({
   redirect(session.url!);
 }
 
+export async function createLifetimeCheckoutSession(team: Team | null) {
+  const user = await getUser();
+
+  if (!user) {
+    redirect('/sign-up?redirect=pricing');
+  }
+
+  const session = await stripe.checkout.sessions.create({
+    payment_method_types: ['card'],
+    line_items: [
+      {
+        price_data: {
+          currency: 'usd',
+          product_data: {
+            name: 'Home Korean Recipes — Lifetime Access',
+            description: 'Unlimited AI recipe scans forever. Pay once, cook forever.',
+            images: []
+          },
+          unit_amount: 699 // $6.99
+        },
+        quantity: 1
+      }
+    ],
+    mode: 'payment',
+    success_url: `${process.env.BASE_URL}/api/stripe/checkout?session_id={CHECKOUT_SESSION_ID}&type=lifetime`,
+    cancel_url: `${process.env.BASE_URL}/pricing`,
+    customer: team?.stripeCustomerId || undefined,
+    client_reference_id: user!.id.toString(),
+    allow_promotion_codes: true
+  });
+
+  redirect(session.url!);
+}
+
 export async function createCustomerPortalSession(team: Team) {
   if (!team.stripeCustomerId || !team.stripeProductId) {
     redirect('/pricing');
@@ -72,7 +106,7 @@ export async function createCustomerPortalSession(team: Team) {
 
     configuration = await stripe.billingPortal.configurations.create({
       business_profile: {
-        headline: 'Manage your subscription'
+        headline: 'Manage your Home Korean Recipes subscription'
       },
       features: {
         subscription_update: {
@@ -91,13 +125,7 @@ export async function createCustomerPortalSession(team: Team) {
           mode: 'at_period_end',
           cancellation_reason: {
             enabled: true,
-            options: [
-              'too_expensive',
-              'missing_features',
-              'switched_service',
-              'unused',
-              'other'
-            ]
+            options: ['too_expensive', 'missing_features', 'switched_service', 'unused', 'other']
           }
         },
         payment_method_update: {
@@ -109,7 +137,7 @@ export async function createCustomerPortalSession(team: Team) {
 
   return stripe.billingPortal.sessions.create({
     customer: team.stripeCustomerId,
-    return_url: `${process.env.BASE_URL}/dashboard`,
+    return_url: `${process.env.BASE_URL}/settings`,
     configuration: configuration.id
   });
 }
